@@ -1,81 +1,50 @@
 // create web server
-// npm install express
-// npm install body-parser
-// npm install nodemon
-// npm install mongoose
-const express = require("express");
-const bodyParser = require("body-parser");
-const mongoose = require("mongoose");
+var http = require('http');
+var fs = require('fs');
+var qs = require('querystring');
+var url = require('url');
 
-const app = express();
-app.use(bodyParser.json());
+var comments = [];
+var server = http.createServer(function(req, res) {
+  var url_parts = url.parse(req.url);
+  if (req.method === 'POST' && url_parts.pathname === '/comment') {
+    var body = '';
+    req.on('data', function(data) {
+      body += data;
+    });
 
-// create a new schema
-const Comment = mongoose.model("Comment", {
-  username: String,
-  content: String,
-  timestamp: Number
-});
-
-// create a new comment
-app.post("/comments", async (req, res) => {
-  const comment = new Comment({
-    username: req.body.username,
-    content: req.body.content,
-    timestamp: new Date().getTime()
-  });
-  await comment.save();
-  res.send(comment);
-});
-
-// get all comments
-app.get("/comments", async (req, res) => {
-  const comments = await Comment.find();
-  res.send(comments);
-});
-
-// get specific comment
-app.get("/comments/:id", async (req, res) => {
-  try {
-    const comment = await Comment.findOne({ _id: req.params.id });
-    res.send(comment);
-  } catch (error) {
-    res.status(404).send({ error: "Comment doesn't exist!" });
+    req.on('end', function() {
+      var comment = qs.parse(body);
+      comments.push(comment.comment);
+      res.writeHead(302, {
+        'Location': '/'
+      });
+      res.end();
+    });
+  } else {
+    res.writeHead(200, {
+      'Content-Type': 'text/html'
+    });
+    res.write('<!DOCTYPE html>' +
+      '<html>' +
+      ' <head>' +
+      ' <title>Comment Board</title>' +
+      ' </head>' +
+      ' <body>' +
+      ' <h1>Comment Board</h1>' +
+      ' <form method="post" action="/comment">' +
+      ' <textarea name="comment"></textarea>' +
+      ' <input type="submit" value="OK" />' +
+      ' </form>' +
+      ' <div>' +
+      comments.map(function(comment) {
+        return '<p>' + comment + '</p>';
+      }).join('') +
+      ' </div>' +
+      ' </body>' +
+      '</html>');
+    res.end();
   }
 });
 
-// delete specific comment
-app.delete("/comments/:id", async (req, res) => {
-  try {
-    await Comment.deleteOne({ _id: req.params.id });
-    res.status(204).send();
-  } catch (error) {
-    res.status(404).send({ error: "Comment doesn't exist!" });
-  }
-});
-
-// update specific comment
-app.put("/comments/:id", async (req, res) => {
-  try {
-    const comment = await Comment.findOne({ _id: req.params.id });
-    comment.content = req.body.content;
-    await comment.save();
-    res.send(comment);
-  } catch (error) {
-    res.status(404).send({ error: "Comment doesn't exist!" });
-  }
-});
-
-// connect to the database
-const connect = async () => {
-  await mongoose.connect("mongodb://localhost:27017/comments", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  });
-  console.log("Connected to database!");
-  app.listen(4001, () => {
-    console.log("API started!");
-  });
-};
-
-connect();
+server.listen(3000);
